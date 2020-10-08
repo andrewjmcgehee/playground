@@ -13,6 +13,7 @@ class Board:
     self._player = RED
     self._current_board = self._init_board
     self._winner = None
+    self._write() # reset board file for serving
 
   # Public Interface
   '''
@@ -33,6 +34,7 @@ class Board:
       self._player = YELLOW
     else:
       self._player = RED
+    self._write();
 
   '''
   Checks if either play has won. Returns True and sets the winner if so, False
@@ -116,6 +118,13 @@ class Board:
     rows = tuple(range(row, row+4))
     cols = tuple(range(col, col+4))
     return self._current_board[rows, cols]
+
+  '''
+  Simple function for writing the board state to a file for serving
+  '''
+  def _write(self):
+    with open('visualizer/output/board.txt', 'w') as f:
+      f.write(self.__str__())
 
   # Python Dunders
   '''
