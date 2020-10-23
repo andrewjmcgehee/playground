@@ -10,7 +10,7 @@ YELLOW = 2
 class Board:
   def __init__(self):
     self._init_board = np.zeros(shape=(NUM_ROWS, NUM_COLS)).astype('uint8')
-    self._player = RED
+    self.player = RED
     self._current_board = self._init_board
     self._winner = None
     self._write() # reset board file for serving
@@ -27,13 +27,13 @@ class Board:
     while row < NUM_ROWS:
       # Got to the last row so simply place the piece
       if row == NUM_ROWS-1 or self._current_board[row+1][column] != EMPTY:
-        self._current_board[row][column] = self._player
+        self._current_board[row][column] = self.player
         break
       row += 1
-    if self._player == RED:
-      self._player = YELLOW
+    if self.player == RED:
+      self.player = YELLOW
     else:
-      self._player = RED
+      self.player = RED
     self._write();
 
   '''
