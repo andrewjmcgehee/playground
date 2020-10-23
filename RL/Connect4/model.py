@@ -4,6 +4,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+RES_TOWER = 9
+
 class ConvBlock(nn.Module):
   '''
   Simple convolution block. Takes 3 in channels and puts out 128 output channels.
@@ -32,8 +34,7 @@ class ConvBlock(nn.Module):
   def forward(self, x):
     # resize input dimensions to fit (B, I, R, C)
     x = x.view(-1, 3, 6, 7)
-    x = F.relu(self.bn(self.conv(x)))
-    return x
+    return F.relu(self.bn(self.conv(x)))
 
 class ResBlock(nn.Module):
   '''
@@ -66,8 +67,7 @@ class ResBlock(nn.Module):
   def forward(self, x):
     res = x
     out = F.relu(self.bn1(self.conv1(x)))
-    out = F.relu(self.bn2(self.conv2(out)) + res)
-    return out
+    return F.relu(self.bn2(self.conv2(out)) + res)
 
 class OutputBlock(nn.Module):
   '''
@@ -121,16 +121,15 @@ class Model(nn.Module):
   def __init__(self):
     super(Model, self).__init__()
     self.conv = ConvBlock()
-    self.res_tower_size = 9
-    self.res = [ResBlock() for _ in range(self.res_tower_size)]
+    for i in range(RES_TOWER):
+      setattr(self, f'res_{i}', ResBlock())
     self.out = OutputBlock()
 
   def forward(self, x):
     x = self.conv(x)
-    for i in range(self.res_tower_size):
-      x = self.res[i](x)
-    x = self.out(x)
-    return x
+    for i in range(RES_TOWER):
+      x = getattr(self, f'res_{i}')(x)
+    return self.out(x)
 
 class Loss(nn.Module):
   '''
