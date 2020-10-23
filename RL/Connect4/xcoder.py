@@ -13,7 +13,7 @@ def encode(b):
   yellow_mask = np.where(state == board.YELLOW)
   encoded[:,:,0][red_mask] = 1
   encoded[:,:,1][yellow_mask] = 1
-  if b._player == board.RED:
+  if b.player == board.RED:
     encoded[:,:,2] = 1
   return encoded
 
@@ -29,7 +29,7 @@ def decode(encoded):
   b = board.Board()
   b._current_board = decoded
   if (encoded[:,:,2] == 1).all():
-    b._player = board.RED
+    b.player = board.RED
   else:
-    b._player = board.YELLOW
+    b.player = board.YELLOW
   return b
