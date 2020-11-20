@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
+from torch.nn import BatchNorm2d, Conv2d, Linear, LogSoftmax, Module
+from torch.nn.functional import relu
 
 RES_TOWER = 9
 
-class ConvBlock(nn.Module):
+class ConvBlock(Module):
   '''
   Simple convolution block. Takes 3 in channels and puts out 128 output channels.
   We are using 3x3 kernels with stride and padding of 1, so after each
@@ -28,15 +28,15 @@ class ConvBlock(nn.Module):
   '''
   def __init__(self):
     super(ConvBlock, self).__init__()
-    self.conv = nn.Conv2d(3, 128, kernel_size=3, stride=1, padding=1)
-    self.bn = nn.BatchNorm2d(128)
+    self.conv = Conv2d(3, 128, kernel_size=3, stride=1, padding=1)
+    self.bn = BatchNorm2d(128)
 
   def forward(self, x):
     # resize input dimensions to fit (B, I, R, C)
     x = x.view(-1, 3, 6, 7)
-    return F.relu(self.bn(self.conv(x)))
+    return relu(self.bn(self.conv(x)))
 
-class ResBlock(nn.Module):
+class ResBlock(Module):
   '''
   Simple residual block as defined in the original residual neural net paper.
   The input first goes through a convolution weight layer, a batch norm layer,
@@ -57,19 +57,19 @@ class ResBlock(nn.Module):
   '''
   def __init__(self):
     super(ResBlock, self).__init__()
-    self.conv1 = nn.Conv2d(128, 128, kernel_size=3, stride=1, padding=1,
-                           bias=False)
-    self.bn1 = nn.BatchNorm2d(128)
-    self.conv2 = nn.Conv2d(128, 128, kernel_size=3, stride=1, padding=1,
-                           bias=False)
-    self.bn2 = nn.BatchNorm2d(128)
+    self.conv1 = Conv2d(128, 128, kernel_size=3, stride=1, padding=1,
+                        bias=False)
+    self.bn1 = BatchNorm2d(128)
+    self.conv2 = Conv2d(128, 128, kernel_size=3, stride=1, padding=1,
+                        bias=False)
+    self.bn2 = BatchNorm2d(128)
 
   def forward(self, x):
     res = x
-    out = F.relu(self.bn1(self.conv1(x)))
-    return F.relu(self.bn2(self.conv2(out)) + res)
+    out = relu(self.bn1(self.conv1(x)))
+    return relu(self.bn2(self.conv2(out)) + res)
 
-class OutputBlock(nn.Module):
+class OutputBlock(Module):
   '''
   Output block for the value head and the policy head. The value head outputs
   a single scalar. The policy head outputs a valid probability mass function
@@ -86,35 +86,35 @@ class OutputBlock(nn.Module):
     our use case.
     '''
     # value output
-    self.value_conv = nn.Conv2d(128, 1, kernel_size=1)
-    self.value_bn = nn.BatchNorm2d(1)
-    self.value_fc1 = nn.Linear(6 * 7, 32)
-    self.value_fc2 = nn.Linear(32, 1)
+    self.value_conv = Conv2d(128, 1, kernel_size=1)
+    self.value_bn = BatchNorm2d(1)
+    self.value_fc1 = Linear(6 * 7, 32)
+    self.value_fc2 = Linear(32, 1)
 
     '''
     Similar issue here where I don't catch the intuition, but we're following
     the AlphaGo Zero arhitecture (since AlphaZero itself isn't fully public).
     '''
     # policy output
-    self.policy_conv = nn.Conv2d(128, 2, kernel_size=1)
-    self.policy_bn = nn.BatchNorm2d(2)
-    self.policy_lsm = nn.LogSoftmax(dim=1)
-    self.policy_fc = nn.Linear(6 * 7 * 2, 7)
+    self.policy_conv = Conv2d(128, 2, kernel_size=1)
+    self.policy_bn = BatchNorm2d(2)
+    self.policy_lsm = LogSoftmax(dim=1)
+    self.policy_fc = Linear(6 * 7 * 2, 7)
 
   def forward(self, x):
     # value: in -> conv -> batch norm -> ReLU -> dense -> tanh
-    v = F.relu(self.value_bn(self.value_conv(x)))
+    v = relu(self.value_bn(self.value_conv(x)))
     v = v.view(-1, 6 * 7)
-    v = F.relu(self.value_fc1(v))
+    v = relu(self.value_fc1(v))
     v = torch.tanh(self.value_fc2(v))
     # policy: in -> conv -> batch norm -> ReLU -> dense -> log softmax
-    p = F.relu(self.policy_bn(self.policy_conv(x)))
+    p = relu(self.policy_bn(self.policy_conv(x)))
     p = p.view(-1, 6 * 7 * 2)
     p = self.policy_fc(p)
     p = self.policy_lsm(p).exp()
     return v, p
 
-class Model(nn.Module):
+class Model(Module):
   '''
   Putting it altogether in a smaller version of the AlphaGo Zero model
   '''
@@ -131,7 +131,7 @@ class Model(nn.Module):
       x = getattr(self, f'res_{i}')(x)
     return self.out(x)
 
-class Loss(nn.Module):
+class Loss(Module):
   '''
   Simple mean squared error function that handles our value and policy head
   together.

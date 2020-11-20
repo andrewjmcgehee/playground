@@ -8,12 +8,14 @@ RED = 1
 YELLOW = 2
 
 class Board:
-  def __init__(self):
-    self._init_board = np.zeros(shape=(NUM_ROWS, NUM_COLS)).astype('uint8')
+  def __init__(self, online=False):
+    self._init_board = np.zeros(shape=(6, 7), dtype=np.uint8)
     self.player = RED
-    self._current_board = self._init_board
-    self._winner = None
-    self._write() # reset board file for serving
+    self.current_board = self._init_board
+    self.winner = None
+    self.online = online
+    if self.online:
+      self._write() # reset board file for serving
 
   # Public Interface
   '''
@@ -21,23 +23,21 @@ class Board:
   index out of bounds.
   '''
   def place_piece(self, column):
-    assert 0 <= column < NUM_COLS, "Attempted to place a piece out of bounds"
-    assert self._current_board[0][column] == EMPTY, "Column is full"
-    row = 0
-    while row < NUM_ROWS:
+    assert self.current_board[0][column] == EMPTY, "Column is full!"
+    for row in range(5):
       # Got to the last row so simply place the piece
-      if row == NUM_ROWS-1 or self._current_board[row+1][column] != EMPTY:
-        self._current_board[row][column] = self.player
+      if self.current_board[row+1][column] != EMPTY:
+        self.current_board[row][column] = self.player
         break
-      row += 1
-    if self.player == RED:
-      self.player = YELLOW
     else:
-      self.player = RED
-    self._write();
+      self.current_board[-1][column] = self.player
+    # Alternate between RED and YELLOW
+    self.player = (self.player % 2) + 1
+    if self.online:
+      self._write();
 
   '''
-  Checks if either play has won. Returns True and sets the winner if so, False
+  Checks if either player has won. Returns True and sets the winner if so, False
   otherwise.
   '''
   def winner(self):
@@ -47,10 +47,10 @@ class Board:
         col_win = self._col_window(r, c)
         pos_diag_win = self._pos_diag_window(r, c)
         neg_diag_win = self._neg_diag_window(r, c)
-        for window in [row_win, col_win, pos_diag_win, neg_diag_win]:
+        for window in (row_win, col_win, pos_diag_win, neg_diag_win):
           has_winner, winner = self._is_winning_window(window)
           if has_winner:
-            self._winner = winner
+            self.winner = winner
             return True
     return False
 
@@ -60,7 +60,7 @@ class Board:
   '''
   def actions(self):
     return [
-      col for col in range(NUM_COLS) if self._current_board[0, col] == EMPTY
+      col for col in range(NUM_COLS) if self.current_board[0, col] == EMPTY
     ]
 
   # Private Utilities
@@ -131,12 +131,12 @@ class Board:
   For printing the board
   '''
   def __str__(self):
-    rep = ''
+    rep = []
     for row in self._current_board:
       row_rep = str(row).strip('[]')
       row_rep = row_rep.replace('0', '.').replace('1', 'R').replace('2', 'Y')
-      rep += row_rep + '\n'
-    return rep
+      rep.append(row_rep)
+    return '\n'.join(rep)
 
   '''
   For printing the board interactively or from a collection context
