@@ -1,0 +1,7 @@
+{
+  "N": 2,
+  "sigma": 0.3,
+  "convergence_fitness": 1e-10,
+  "convergence_eval_factor": 1e3,
+  "seed": 0
+}
