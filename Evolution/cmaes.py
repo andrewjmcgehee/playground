@@ -2,7 +2,11 @@ import argparse
 from dataclasses import dataclass
 import json
 from math import floor, sqrt
+import os
 
+import matplotlib.pyplot as plt
+import matplotlib.transforms as transforms
+from matplotlib.patches import Ellipse
 import numpy as np
 
 
@@ -78,8 +82,8 @@ def shifted_rastrigin(x, y):
   Returns:
     a floating point fitness value for values x and y
   '''
-  return ((x-5)**2 - 10 * np.cos(2 * np.pi + (x-5))) + \
-         ((y-5)**2 - 10 * np.cos(2 * np.pi + (y-5))) + 20
+  return ((x-5)**2 - 10 * np.cos(2 * np.pi * (x-5))) + \
+         ((y-5)**2 - 10 * np.cos(2 * np.pi * (y-5))) + 20
 
 
 def get_fitnesses(pool):
@@ -140,9 +144,11 @@ def init(config):
   factor = config['convergence_eval_factor']
   convergence_evals = factor * N**2
   constants = Constants(N, convergence_fitness, convergence_evals)
+  constants.experiment = config.get("experiment", None)
+  constants.snapshot = config.get("snapshot_generations", None)
 
   # selection
-  lamda = 4 + floor(3 * np.log(N))
+  lamda = 20 + floor(3 * np.log(N))
   mu = lamda / 2
   weights = np.log(mu + 0.5) - np.log(np.arange(1, mu + 1))
   mu = floor(mu)
@@ -162,8 +168,7 @@ def init(config):
                           decompose_threshold)
 
   # initial state
-  if "seed" in config:
-    np.random.seed(config['seed'])
+  np.random.seed(config.get('seed', None))
   sigma = config['sigma']
   means = np.random.rand(N, 1)
   p_cov = np.zeros((N, 1))
@@ -348,7 +353,7 @@ def optimize(state):
     the best results found during the optimization
   '''
   results = Results(None, np.inf)
-  evals = 0
+  evals, generations = 0, 0
   while evals < constants.convergence_evals:
     sigma, means, B, D = state.generation_tuple()
     pool = np.zeros((constants.N, selection.lamda))
@@ -356,6 +361,7 @@ def optimize(state):
       pool[:, i] = means.T + sigma * B @ (D * np.random.randn(constants.N))
     fitnesses = get_fitnesses(pool)
     evals += selection.lamda
+    generations += 1
     pool = pool[:, fitnesses.argsort()]
     fitnesses.sort()
     state = update_means(pool, state)
@@ -368,10 +374,77 @@ def optimize(state):
     if evals - state.eigenevals > adaptation.decompose_threshold:
       state = eigen_decompose(evals, state)
     results = update_results(pool, fitnesses, results)
+    converged = fitnesses[0] <= constants.convergence_fitness
+    no_variance = np.sum(pool.var(axis=1) < 1e-9) == constants.N
     exploding_scale = D.max() > 1e7 * D.min()
-    if fitnesses[0] <= constants.convergence_fitness or exploding_scale:
+    if converged or no_variance or exploding_scale:
       break
+    if constants.snapshot and generations % constants.snapshot == 0:
+      snapshot(pool, state, experiment=constants.experiment, frame=generations)
+  snapshot(pool, state, experiment=constants.experiment, frame='final')
   return results
+
+
+def snapshot(pool, state, experiment='', frame=None):
+  '''Function which allows users to visualize the algorithm by capturing
+  snapshots. Each snapshots shows a scatter of the candidate solutions along
+  with a confidence ellipse of the current covariance.
+
+  Args:
+    pool:  an ndarray of candidate solutions
+    state:  the initial state of the optimization variables
+    experiment:  the name of the current experiment (optional)
+    frame:  the current generation (frame in the sense of a GIF / short movie)
+
+  NOTE: taking snapshots WILL slow down execution. To turn this off, either
+  remove the snapshot_generations parameter from the config or set it to 0 or
+  None
+  '''
+  if constants.N > 2:
+    return
+  if not os.path.isdir("./snapshots"):
+    os.makedirs("./snapshots")
+  pearson = state.C[0, 1] / np.sqrt(state.C[0, 0] * state.C[1, 1])
+  x_rad, y_rad = np.sqrt(1 + pearson), np.sqrt(1 - pearson)
+  ellipse = Ellipse((0, 0),
+                    width=2 * x_rad,
+                    height=2 * y_rad,
+                    facecolor='white',
+                    alpha=0.3)
+
+  scale_x = np.sqrt(state.C[0, 0]) * 2 * state.sigma  # 2 standard deviations
+  mean_x = np.mean(pool[0])
+  scale_y = np.sqrt(state.C[1, 1]) * 2 * state.sigma  # 2 standard deviations
+  mean_y = np.mean(pool[1])
+  transform = transforms.Affine2D() \
+      .rotate_deg(45) \
+      .scale(scale_x, scale_y) \
+      .translate(mean_x, mean_y)
+
+  fig = plt.figure(figsize=(9, 9))
+  ax = fig.add_subplot()
+  xmin, xmax = min(3, 5 - 3*scale_x), max(7, 5 + 3*scale_x)
+  ymin, ymax = min(3, 5 - 3*scale_y), max(7, 5 + 3*scale_y)
+  xmin, ymin = min(xmin, ymin), min(xmin, ymin)
+  xmax, ymax = max(xmax, ymax), max(xmax, ymax)
+  x = np.linspace(xmin, xmax, 1000)
+  y = np.linspace(ymin, ymax, 1000)
+  x, y = np.meshgrid(x, y)
+  z = shifted_rastrigin(x, y)
+  ax.imshow(z, origin='lower', extent=[xmin, xmax, ymin, ymax], cmap='inferno')
+  ax.scatter(pool[0], pool[1], color='white')
+  ellipse.set_transform(transform + ax.transData)
+  ax.add_patch(ellipse)
+  ax.set_title("CMA-ES")
+  ax.set_xlabel(f'isolated variance: {pool.var(axis=1)}')
+  filename = ["./snapshots/fig"]
+  if experiment:
+    filename.append(experiment)
+  if frame is not None:
+    filename.append(str(frame))
+  filename = '_'.join(filename)
+  fig.savefig(filename)
+  plt.close()
 
 
 def main():

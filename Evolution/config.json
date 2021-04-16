@@ -1,7 +1,9 @@
 {
   "N": 2,
-  "sigma": 0.3,
+  "sigma": 5,
   "convergence_fitness": 1e-10,
   "convergence_eval_factor": 1e3,
-  "seed": 0
+  "experiment": "test",
+  "snapshot_generations": 2,
+  "seed": 1
 }
