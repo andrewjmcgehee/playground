@@ -381,7 +381,7 @@ def optimize(state):
       break
     if constants.snapshot and generations % constants.snapshot == 0:
       snapshot(pool, state, experiment=constants.experiment, frame=generations)
-  snapshot(pool, state, experiment=constants.experiment, frame='final')
+  snapshot(pool, state, experiment=constants.experiment, frame=generations)
   return results
 
 
@@ -441,7 +441,7 @@ def snapshot(pool, state, experiment='', frame=None):
   if experiment:
     filename.append(experiment)
   if frame is not None:
-    filename.append(str(frame))
+    filename.append(f'{frame:03d}')
   filename = '_'.join(filename)
   fig.savefig(filename)
   plt.close()
