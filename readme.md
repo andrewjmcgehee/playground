@@ -1,2 +1,2 @@
-# ML Playground
-Just a place for me to play around with various ML architectures, ideas, etc.
+# ml-playground
+just a place for me to play around with various ML architectures, ideas, etc.
