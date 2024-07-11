@@ -1,3 +1,5 @@
 __pycache__/
 .DS_Store
 raw_html/
+.vscode/
+.ipynb_checkpoints/
